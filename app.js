@@ -24,9 +24,12 @@ const app = new App({
 // 1) The custom step fires when the client starts the workflow.
 //    Load candidates for the channel's search and open the feedback modal.
 //    Do NOT complete() here; the modal submission completes the step.
-app.function(STEP_CALLBACK, async ({ inputs, client, fail, logger }) => {
+app.function(STEP_CALLBACK, async ({ inputs, client, fail, context, body, logger }) => {
   try {
     const channelId = inputs.channel_id;
+    const functionExecutionId =
+      context.functionExecutionId ||
+      (body && body.event && body.event.function_execution_id);
 
     const res = await fetch(`${SFUTILITIES_URL}/sf/candidates`, {
       method: 'POST',
@@ -55,7 +58,7 @@ app.function(STEP_CALLBACK, async ({ inputs, client, fail, logger }) => {
       view: {
         type: 'modal',
         callback_id: MODAL_CALLBACK,
-        private_metadata: JSON.stringify({ channelId }),
+        private_metadata: JSON.stringify({ channelId, functionExecutionId }),
         title: { type: 'plain_text', text: 'Client Feedback' },
         submit: { type: 'plain_text', text: 'Submit' },
         close: { type: 'plain_text', text: 'Cancel' },
@@ -90,43 +93,72 @@ app.function(STEP_CALLBACK, async ({ inputs, client, fail, logger }) => {
   }
 });
 
-// 2) The client submits the modal. Create the Note, then complete the step.
-//    complete() and fail() are available here because this view was opened
-//    from the custom step (function-scoped interactivity).
-app.view(MODAL_CALLBACK, async ({ ack, view, complete, fail, logger }) => {
+// 2) The client submits the modal. Create the Note, then complete the step
+//    explicitly using the function execution ID carried in private_metadata.
+app.view(MODAL_CALLBACK, async ({ ack, body, view, client, logger }) => {
   await ack(); // closes the modal
 
+  const { channelId, functionExecutionId } = JSON.parse(view.private_metadata || '{}');
   const v = view.state.values;
   const selected = v.candidate_block.candidate.selected_option;
   const applicationId = selected.value;
   const candidateName = selected.text.text;
   const feedback = v.feedback_block.feedback.value;
 
+  // Resolve the name of the person who ran the workflow (the modal submitter).
+  // External Connect users may not be fully resolvable, so fall back gracefully.
+  let submitterName = (body.user && (body.user.username || body.user.name)) || 'a client';
+  try {
+    const info = await client.users.info({ user: body.user.id });
+    const profile = info.user && info.user.profile;
+    submitterName =
+      (profile && (profile.display_name || profile.real_name)) ||
+      info.user.real_name ||
+      submitterName;
+  } catch (e) {
+    // keep the fallback
+  }
+
+  const description = `${feedback}\n\nSubmitted by ${submitterName} via Slack`;
+
   try {
     const res = await fetch(`${SFUTILITIES_URL}/sf/note`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ applicationId, description: feedback }),
+      body: JSON.stringify({ applicationId, description }),
     });
     const data = await res.json();
 
     if (!res.ok || !data.ok) {
-      await fail({ error: (data && data.error) || 'Could not save the note to Seven20.' });
+      if (functionExecutionId) {
+        await client.functions.completeError({
+          function_execution_id: functionExecutionId,
+          error: (data && data.error) || 'Could not save the note to Seven20.',
+        });
+      }
       return;
     }
 
-    const summary = `*Client feedback on ${candidateName}*\n${feedback}`;
-    await complete({
-      outputs: {
-        candidate_name: candidateName,
-        feedback,
-        summary,
-        note_id: data.noteId || '',
-      },
-    });
+    const summary = `*Client feedback on ${candidateName}* (from ${submitterName})\n${feedback}`;
+    if (functionExecutionId) {
+      await client.functions.completeSuccess({
+        function_execution_id: functionExecutionId,
+        outputs: {
+          candidate_name: candidateName,
+          feedback,
+          summary,
+          note_id: data.noteId || '',
+        },
+      });
+    }
   } catch (err) {
     logger.error(err);
-    await fail({ error: 'Something went wrong saving the feedback.' });
+    if (functionExecutionId) {
+      await client.functions.completeError({
+        function_execution_id: functionExecutionId,
+        error: 'Something went wrong saving the feedback.',
+      });
+    }
   }
 });
 
