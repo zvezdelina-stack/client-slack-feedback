@@ -1,0 +1,77 @@
+{
+  "display_information": {
+    "name": "SwingSearch Client Feedback"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Client Feedback",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": true,
+    "function_runtime": "remote",
+    "socket_mode_enabled": true,
+    "interactivity": {
+      "is_enabled": true
+    },
+    "event_subscriptions": {
+      "bot_events": [
+        "function_executed"
+      ]
+    }
+  },
+  "functions": {
+    "collect_client_feedback": {
+      "title": "Collect client feedback",
+      "description": "Show a candidate dropdown and save the client's feedback to Seven20.",
+      "input_parameters": {
+        "channel_id": {
+          "type": "slack#/types/channel_id",
+          "title": "Channel",
+          "description": "The channel the workflow started in.",
+          "is_required": true
+        },
+        "interactivity": {
+          "type": "slack#/types/interactivity",
+          "title": "Interactivity",
+          "description": "Required to open the feedback form.",
+          "is_required": true
+        }
+      },
+      "output_parameters": {
+        "candidate_name": {
+          "type": "string",
+          "title": "Candidate name",
+          "description": "The candidate the feedback is about.",
+          "is_required": false
+        },
+        "feedback": {
+          "type": "string",
+          "title": "Feedback",
+          "description": "The feedback text the client submitted.",
+          "is_required": false
+        },
+        "summary": {
+          "type": "string",
+          "title": "Summary",
+          "description": "A formatted summary suitable for posting to the channel.",
+          "is_required": false
+        },
+        "note_id": {
+          "type": "string",
+          "title": "Note ID",
+          "description": "The Seven20 Note record ID.",
+          "is_required": false
+        }
+      }
+    }
+  }
+}

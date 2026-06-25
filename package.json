@@ -1,0 +1,15 @@
+{
+  "name": "swingsearch-client-feedback",
+  "version": "1.0.0",
+  "description": "Slack custom step that captures client feedback and writes it to Seven20 via SFUtilities.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
