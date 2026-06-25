@@ -96,9 +96,24 @@ app.function(STEP_CALLBACK, async ({ inputs, client, fail, context, body, logger
 // 2) The client submits the modal. Create the Note, then complete the step
 //    explicitly using the function execution ID carried in private_metadata.
 app.view(MODAL_CALLBACK, async ({ ack, body, view, client, logger }) => {
-  await ack(); // closes the modal
+  // Confirm to the client right in the modal. Needs no channel and works for
+  // external Connect users, so there is no Send a message step that can fail.
+  await ack({
+    response_action: 'update',
+    view: {
+      type: 'modal',
+      title: { type: 'plain_text', text: 'Client Feedback' },
+      close: { type: 'plain_text', text: 'Done' },
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: ':white_check_mark: Your feedback has been recorded. Thank you.' },
+        },
+      ],
+    },
+  });
 
-  const { channelId, functionExecutionId } = JSON.parse(view.private_metadata || '{}');
+  const { functionExecutionId } = JSON.parse(view.private_metadata || '{}');
   const v = view.state.values;
   const selected = v.candidate_block.candidate.selected_option;
   const applicationId = selected.value;
