@@ -11,6 +11,8 @@
 
 const { App } = require('@slack/bolt');
 
+const registerSummaryListeners = require('./summaryListeners');
+
 const SFUTILITIES_URL = process.env.SFUTILITIES_URL;
 const STEP_CALLBACK = 'collect_client_feedback';
 const MODAL_CALLBACK = 'feedback_modal';
@@ -176,6 +178,8 @@ app.view(MODAL_CALLBACK, async ({ ack, body, view, client, logger }) => {
     }
   }
 });
+
+registerSummaryListeners(app);
 
 (async () => {
   await app.start();
